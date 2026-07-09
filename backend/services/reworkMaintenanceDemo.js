@@ -3,3 +3,4 @@
 const a = 1;
 const oldLine = 'removed after aging past REWORK_DAYS -> maintenance';
 const b = 2;
+const recentLine = 'removed a few days later, same author -> rework';
