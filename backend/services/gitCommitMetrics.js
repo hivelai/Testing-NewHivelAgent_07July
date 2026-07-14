@@ -54,18 +54,13 @@ function listChangedFiles(repoPath, parentSha, commitSha) {
     entries.push({ status, oldPath, newPath });
   }
 
-  let ni = 0;
-  for (const entry of entries) {
-    const additions = parseInt(numstatTokens[ni++], 10) || 0;
-    const deletions = parseInt(numstatTokens[ni++], 10) || 0;
-    const numstatPath = numstatTokens[ni++];
-    if (numstatPath !== entry.oldPath) {
-      // rename/copy: numstat emits old path then new path as separate NUL fields
-      ni++;
-    }
-    entry.additions = additions;
-    entry.deletions = deletions;
-  }
+  // Each NUL-delimited numstat record is itself "added\tdeleted\tpath[\tpath2]" (tab-joined),
+  // not one field per NUL token. Records line up 1:1 with `entries` in the same file order.
+  entries.forEach((entry, idx) => {
+    const [added, deleted] = numstatTokens[idx].split('\t');
+    entry.additions = parseInt(added, 10) || 0;
+    entry.deletions = deleted === '-' ? 0 : parseInt(deleted, 10) || 0;
+  });
 
   return entries;
 }
