@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const taskRoutes = require('./routes/tasks');
+const statsRoutes = require('./routes/stats');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -12,6 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/tasks', taskRoutes);
+app.use('/api/stats', statsRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
