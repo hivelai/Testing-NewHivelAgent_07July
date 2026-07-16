@@ -1,0 +1,35 @@
+.metrics {
+  max-width: 720px;
+  margin: 40px auto 0;
+  padding: 20px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+
+.metrics h2 {
+  text-align: center;
+}
+
+.metrics-section {
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.metrics-table th,
+.metrics-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+
+.metrics-table th:first-child,
+.metrics-table td:first-child,
+.metrics-table th:nth-child(2),
+.metrics-table td:nth-child(2) {
+  text-align: left;
+}

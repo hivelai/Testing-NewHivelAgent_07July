@@ -1,5 +1,5 @@
 const { execFileSync } = require('child_process');
-const { computeNewWork, classifyRemovedLines } = require('./metricsCalculator');
+const { classifyChangedLines } = require('./metricsCalculator');
 
 function git(repoPath, args) {
   return execFileSync('git', args, {
@@ -54,18 +54,13 @@ function listChangedFiles(repoPath, parentSha, commitSha) {
     entries.push({ status, oldPath, newPath });
   }
 
-  let ni = 0;
-  for (const entry of entries) {
-    const additions = parseInt(numstatTokens[ni++], 10) || 0;
-    const deletions = parseInt(numstatTokens[ni++], 10) || 0;
-    const numstatPath = numstatTokens[ni++];
-    if (numstatPath !== entry.oldPath) {
-      // rename/copy: numstat emits old path then new path as separate NUL fields
-      ni++;
-    }
-    entry.additions = additions;
-    entry.deletions = deletions;
-  }
+  // Each NUL-delimited numstat record is itself "added\tdeleted\tpath[\tpath2]" (tab-joined),
+  // not one field per NUL token. Records line up 1:1 with `entries` in the same file order.
+  entries.forEach((entry, idx) => {
+    const [added, deleted] = numstatTokens[idx].split('\t');
+    entry.additions = parseInt(added, 10) || 0;
+    entry.deletions = deleted === '-' ? 0 : parseInt(deleted, 10) || 0;
+  });
 
   return entries;
 }
@@ -82,7 +77,7 @@ function getFileContent(repoPath, commitSha, filePath) {
 function getBlame(repoPath, commitSha, filePath) {
   let out;
   try {
-    out = git(repoPath, ['blame', '-w', '--line-porcelain', commitSha, '--', filePath]);
+    out = git(repoPath, ['blame', '-w', '-M', '--line-porcelain', commitSha, '--', filePath]);
   } catch {
     return null;
   }
@@ -150,8 +145,7 @@ async function computeCommitMetrics(repoPath, commitSha, parentShaInput) {
       if (parentBlame === null || currentBlame === null) {
         fileMetrics = { rework: 0, newwork: 0, maintenance: 0, assistance: 0 };
       } else {
-        const newwork = computeNewWork(file.status, oldLines, newLines);
-        const { rework, assistance, maintenance } = classifyRemovedLines({
+        fileMetrics = classifyChangedLines({
           status: file.status,
           oldLines,
           newLines,
@@ -161,7 +155,6 @@ async function computeCommitMetrics(repoPath, commitSha, parentShaInput) {
           commitDate,
           linesRemoved: file.deletions,
         });
-        fileMetrics = { rework, newwork, maintenance, assistance };
       }
     } catch {
       fileMetrics = { rework: 0, newwork: 0, maintenance: 0, assistance: 0 };
