@@ -12,6 +12,10 @@ export const deleteTask = (id) => api.delete(`/tasks/${id}`);
 export const getUsers = () => api.get('/users');
 export const createUser = (name, email) => api.post('/users', { name, email });
 
+export const getCommitMetrics = (repo) => api.get('/commit-metrics', { params: repo ? { repo } : {} });
+export const getCommitMetricsSummary = (repo) =>
+  api.get('/commit-metrics/summary/by-author', { params: repo ? { repo } : {} });
+
 export const getFriends = (userId) => api.get(`/friends/${userId}`);
 export const getPendingRequests = (userId) => api.get(`/friends/${userId}/pending`);
 export const sendFriendRequest = (requesterId, recipientEmail) =>

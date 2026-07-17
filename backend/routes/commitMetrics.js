@@ -67,6 +67,40 @@ router.post('/recalculate-all', async (req, res) => {
   }
 });
 
+// GET stored metrics for every commit, optionally filtered by repo
+router.get('/', async (req, res) => {
+  const { repo } = req.query;
+  const filter = repo ? { repo } : {};
+  const metrics = await CommitMetric.find(filter).sort({ commitDate: 1 });
+  res.json(metrics);
+});
+
+// GET per-author totals for New Work / Rework / Assistance / Maintenance
+router.get('/summary/by-author', async (req, res) => {
+  const { repo } = req.query;
+  const match = repo ? { repo } : {};
+
+  const summary = await CommitMetric.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: '$authorEmail',
+        commits: { $sum: 1 },
+        newwork: { $sum: '$newwork' },
+        rework: { $sum: '$rework' },
+        assistance: { $sum: '$assistance' },
+        maintenance: { $sum: '$maintenance' },
+        linesAdded: { $sum: '$linesAdded' },
+        linesRemoved: { $sum: '$linesRemoved' },
+      },
+    },
+    { $project: { _id: 0, authorEmail: '$_id', commits: 1, newwork: 1, rework: 1, assistance: 1, maintenance: 1, linesAdded: 1, linesRemoved: 1 } },
+    { $sort: { authorEmail: 1 } },
+  ]);
+
+  res.json(summary);
+});
+
 // GET stored metrics for a commit
 router.get('/:commitSha', async (req, res) => {
   const metric = await CommitMetric.findOne({ commitSha: req.params.commitSha });
