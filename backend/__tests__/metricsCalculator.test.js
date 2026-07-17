@@ -8,6 +8,14 @@ describe('wsNormalize', () => {
   it('strips trailing whitespace', () => {
     expect(wsNormalize('foo bar   ')).toBe('foo bar');
   });
+
+  it('collapses a run of tabs into a single space', () => {
+    expect(wsNormalize('foo\t\t\tbar')).toBe('foo bar');
+  });
+
+  it('returns an empty string for whitespace-only input', () => {
+    expect(wsNormalize('   \t  ')).toBe('');
+  });
 });
 
 describe('classifyChangedLines', () => {
@@ -266,6 +274,152 @@ describe('classifyChangedLines', () => {
       parentBlame,
       currentBlame: {},
       commitAuthorEmail,
+      commitDate,
+      linesRemoved: 1,
+    });
+
+    expect(result).toEqual({ newwork: 0, rework: 0, assistance: 0, maintenance: 1 });
+  });
+
+  it('treats a line exactly REWORK_DAYS old as still within the rework window', () => {
+    const oldLines = ['const gone = 1;'];
+    const newLines = [];
+    const boundaryDate = new Date(commitDate.getTime() - REWORK_DAYS * 86400000);
+    const parentBlame = { 0: { author: commitAuthorEmail, date: boundaryDate } };
+
+    const result = classifyChangedLines({
+      status: 'modified',
+      oldLines,
+      newLines,
+      parentBlame,
+      currentBlame: {},
+      commitAuthorEmail,
+      commitDate,
+      linesRemoved: 1,
+    });
+
+    expect(result).toEqual({ newwork: 0, rework: 1, assistance: 0, maintenance: 0 });
+  });
+
+  it('treats a line one day past REWORK_DAYS as maintenance', () => {
+    const oldLines = ['const gone = 1;'];
+    const newLines = [];
+    const boundaryDate = new Date(commitDate.getTime() - (REWORK_DAYS + 1) * 86400000);
+    const parentBlame = { 0: { author: commitAuthorEmail, date: boundaryDate } };
+
+    const result = classifyChangedLines({
+      status: 'modified',
+      oldLines,
+      newLines,
+      parentBlame,
+      currentBlame: {},
+      commitAuthorEmail,
+      commitDate,
+      linesRemoved: 1,
+    });
+
+    expect(result).toEqual({ newwork: 0, rework: 0, assistance: 0, maintenance: 1 });
+  });
+
+  it('honors a custom reworkDays override instead of the default REWORK_DAYS', () => {
+    const oldLines = ['const gone = 1;'];
+    const newLines = [];
+    const sixDaysOld = new Date(commitDate.getTime() - 6 * 86400000);
+    const parentBlame = { 0: { author: commitAuthorEmail, date: sixDaysOld } };
+
+    const result = classifyChangedLines({
+      status: 'modified',
+      oldLines,
+      newLines,
+      parentBlame,
+      currentBlame: {},
+      commitAuthorEmail,
+      commitDate,
+      linesRemoved: 1,
+      reworkDays: 5,
+    });
+
+    expect(result).toEqual({ newwork: 0, rework: 0, assistance: 0, maintenance: 1 });
+  });
+
+  it('compares commit author and line author case-insensitively', () => {
+    const oldLines = ['const gone = 1;'];
+    const newLines = [];
+    const recentDate = new Date(commitDate.getTime() - 5 * 86400000);
+    const parentBlame = { 0: { author: 'Author@Example.COM', date: recentDate } };
+
+    const result = classifyChangedLines({
+      status: 'modified',
+      oldLines,
+      newLines,
+      parentBlame,
+      currentBlame: {},
+      commitAuthorEmail: 'author@example.com',
+      commitDate,
+      linesRemoved: 1,
+    });
+
+    expect(result).toEqual({ newwork: 0, rework: 1, assistance: 0, maintenance: 0 });
+  });
+
+  it('skips a removed line entirely when its blame entry has no date', () => {
+    const oldLines = ['const gone = 1;'];
+    const newLines = [];
+    const parentBlame = { 0: { author: commitAuthorEmail, date: null } };
+
+    const result = classifyChangedLines({
+      status: 'modified',
+      oldLines,
+      newLines,
+      parentBlame,
+      currentBlame: {},
+      commitAuthorEmail,
+      commitDate,
+      linesRemoved: 1,
+    });
+
+    expect(result).toEqual({ newwork: 0, rework: 0, assistance: 0, maintenance: 0 });
+  });
+
+  it('does not count an added line as newwork when it has no currentBlame entry', () => {
+    const oldLines = ['const x = 1;'];
+    const newLines = ['const x = 1;', 'const y = 2;'];
+    const parentBlame = { 0: { author: 'other@example.com', date: commitDate } };
+    const currentBlame = { 0: { author: 'other@example.com', date: commitDate } };
+
+    const result = classifyChangedLines({
+      status: 'modified',
+      oldLines,
+      newLines,
+      parentBlame,
+      currentBlame,
+      commitAuthorEmail,
+      commitDate,
+      linesRemoved: 0,
+    });
+
+    expect(result.newwork).toBe(0);
+  });
+
+  it('only excuses as many duplicate lines as actually reappear elsewhere', () => {
+    // Two identical old lines but only one copy survives in the new file: exactly one
+    // should be treated as "moved" (excluded), the other must still be classified as removed.
+    const oldLines = ['const dup = 1;', 'const dup = 1;'];
+    const newLines = ['const dup = 1;'];
+    const oldDate = new Date(commitDate.getTime() - (REWORK_DAYS + 10) * 86400000);
+    const parentBlame = {
+      0: { author: 'alice@example.com', date: oldDate },
+      1: { author: 'alice@example.com', date: oldDate },
+    };
+    const currentBlame = { 0: { author: 'alice@example.com', date: oldDate } };
+
+    const result = classifyChangedLines({
+      status: 'modified',
+      oldLines,
+      newLines,
+      parentBlame,
+      currentBlame,
+      commitAuthorEmail: 'bob@example.com',
       commitDate,
       linesRemoved: 1,
     });
